@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Traceroute Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <aside class="panel">
+    <header class="brand">
+      <h1>Traceroute Map</h1>
+      <p>Trace the route from this PC to any host and watch each hop appear.</p>
+    </header>
+
+    <form id="trace-form" class="trace-form" autocomplete="off">
+      <input id="target" name="target" type="text" placeholder="e.g. google.com or 1.1.1.1"
+             spellcheck="false" aria-label="Target hostname or IP address">
+      <button type="submit">Trace</button>
+    </form>
+    <p id="form-error" class="form-error" role="alert"></p>
+
+    <section class="routes">
+      <div class="section-head">
+        <h2>Routes</h2>
+        <button id="export" class="ghost" type="button" disabled>Export HTML</button>
+      </div>
+      <ul id="route-list"><li class="empty">No traces yet.</li></ul>
+    </section>
+
+    <section class="hops">
+      <h2 id="hops-title">Hops</h2>
+      <table id="hop-table">
+        <thead><tr><th>#</th><th>Address</th><th>RTT</th><th>Location / network</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <footer class="note">
+      Locations are approximate (GeoIP via <a href="https://ip-api.com" target="_blank" rel="noopener">ip-api.com</a>)
+      and often show the provider's registered location, not the physical router.
+      <span class="legend">
+        <i style="--c: var(--fast)"></i>&lt; 30 ms
+        <i style="--c: var(--mid)"></i>30–99 ms
+        <i style="--c: var(--slow)"></i>≥ 100 ms
+      </span>
+    </footer>
+  </aside>
+
+  <main id="map" aria-label="World map with traced routes"></main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/static/export.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
