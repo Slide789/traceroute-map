@@ -18,7 +18,7 @@ Run a traceroute from your own PC and watch every hop show up live on a world ma
 Requires Python 3.11 or newer.
 
 ```bash
-git clone https://github.com/slideldn/traceroute-map.git
+git clone https://github.com/Slide789/traceroute-map.git
 cd traceroute-map
 python -m venv .venv
 .venv\Scripts\activate        # Windows
