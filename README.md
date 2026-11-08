@@ -1,23 +1,26 @@
 # Traceroute Map
 
-Run a traceroute from your own PC and watch every hop show up live on a world map, with latency, hostname, network (AS) and approximate location for each hop.
+Traceroute Map runs a traceroute from your own PC and draws each hop on a world map as soon as it answers. For every hop you see the latency, hostname, network (AS) and a rough location.
 
-![Three traced routes on the map: eu.battle.net, 1.1.1.1 and google.com](docs/screenshot.jpg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshot-dark.png">
+  <img alt="Three traced routes on the map: google.com, 1.1.1.1 and eu.battle.net" src="docs/screenshot-light.png">
+</picture>
 
 ## Features
 
-- Type a hostname or IP address and the hops appear on the map one by one while the trace is running
-- For each hop: IP address, reverse DNS name, three round-trip times, AS number and provider, city and country
-- Each hop flies to the next one along a curved arc, with a shadow on the ground, so you can follow the route as it is traced
-- Light and dark mode (follows your system setting, switch with the button next to the title)
-- Markers are colored by latency: green under 30 ms, amber from 30 to 99 ms, red from 100 ms
-- Compare several targets on one map, with one colored route per target that you can show, hide or remove
-- Hops that don't reply (`* * *`) and private addresses (your router, carrier-grade NAT) appear in the table but not on the map. A dashed line means some hops in between had no location
-- Export the visible routes as a single HTML file you can open anywhere
+- Enter a hostname or IP address and watch the hops appear one by one while the trace runs.
+- Each new hop flies in from the previous one along a curved arc with a shadow underneath, so you can follow the route as it builds.
+- The table lists every hop with its IP address, reverse DNS name, three round-trip times, AS number, provider, city and country.
+- Markers are colored by latency: green under 30 ms, amber from 30 to 99 ms, red from 100 ms.
+- You can trace several targets onto the same map. Each one gets its own color and can be shown, hidden or removed.
+- Hops that don't reply (`* * *`) and private addresses such as your router or carrier-grade NAT are listed in the table but left off the map. When hops are missing between two points, the line between them is dashed.
+- There's a light and a dark theme. It starts with your system setting, and the button next to the title switches it.
+- Export the visible routes as one HTML file that opens in any browser.
 
 ## Install
 
-Requires Python 3.11 or newer.
+You need Python 3.11 or newer.
 
 ```bash
 git clone https://github.com/Slide789/traceroute-map.git
@@ -42,23 +45,23 @@ This starts a small local server on `http://127.0.0.1:8765` and opens it in your
 tracert / traceroute  →  parser  →  reverse DNS + GeoIP  →  Server-Sent Events  →  Leaflet map
 ```
 
-1. The tool runs your operating system's traceroute (`tracert -4 -d` on Windows, `traceroute -n` on Linux/macOS) and reads its output line by line.
-2. The parser only looks at numbers, `*` and IP addresses, never at words, so it works whatever language your system uses.
-3. Each public hop is looked up at ip-api.com for its approximate location and AS. Results are cached while the tool is running.
-4. Hops are streamed to the browser as Server-Sent Events and drawn with Leaflet on OpenStreetMap tiles.
+1. The tool runs your system's traceroute (`tracert -4 -d` on Windows, `traceroute -n` on Linux/macOS) and reads the output line by line.
+2. The parser only reads numbers, `*` and IP addresses and ignores words, so it works in any system language.
+3. Each public hop is looked up at ip-api.com for its approximate location and AS. Lookups are cached for as long as the tool runs.
+4. The server streams the hops to the browser as Server-Sent Events, and Leaflet draws them on OpenStreetMap tiles.
 
-Everything runs on your machine. The trace always starts from the PC that runs the tool.
+Everything runs locally, and the trace always starts from the PC running the tool.
 
 ## Limitations
 
-- **Locations are approximate.** GeoIP databases often return the place where a network is registered, not where the router actually is. Anycast addresses such as `1.1.1.1` can show up on the other side of the world even though they answer in 10 ms.
-- **`* * *` is normal.** Many routers don't answer traceroute probes, so some hops will always be missing.
-- **IPv4 only** for now.
-- **Linux/macOS** need the `traceroute` package installed. The tool was developed and tested on Windows 11.
+- Locations are approximate. GeoIP databases often return the place where a network is registered, which can be far from the actual router. Anycast addresses such as `1.1.1.1` may show up on the other side of the world even though they answer in 10 ms.
+- `* * *` is normal. Many routers ignore traceroute probes, so some hops will always be missing.
+- Only IPv4 is supported for now.
+- On Linux and macOS you need the `traceroute` package. I built and tested the tool on Windows 11.
 
 ## Data sources and credits
 
-- Geolocation and AS data: [ip-api.com](https://ip-api.com). The free tier is for non-commercial use only and allows 45 requests per minute. The tool stays under that limit on its own.
+- Geolocation and AS data come from [ip-api.com](https://ip-api.com). The free tier is for non-commercial use and allows 45 requests per minute, and the tool keeps itself under that limit.
 - Map tiles: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors
 - Map library: [Leaflet](https://leafletjs.com)
 
