@@ -5,11 +5,12 @@
 // so the exported map looks and behaves like the live one.
 
 const EXPORT_CSS = `
-  :root { --none:#98a2b3; --fast:#16a34a; --mid:#d97706; --slow:#dc2626; --line:#e4e7ec; --muted:#667085; }
+  :root { --none:#8a8a93; --fast:#1f9d62; --mid:#d9901c; --slow:#e0424a; --line:rgb(21 21 27 / 0.1); --muted:rgb(21 21 27 / 0.68); }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.45 "Segoe UI", system-ui, sans-serif; color: #16181d; background: #fff; }
+  body { margin: 0; font: 14px/1.5 Inter, "Segoe UI", system-ui, sans-serif; color: #15151b; background: #fff; }
   header { padding: 16px 20px; border-bottom: 1px solid var(--line); }
-  h1 { margin: 0; font-size: 20px; }
+  h1 { margin: 0; font-size: 20px; letter-spacing: -0.025em; }
+  h1::after { content: ""; display: inline-block; width: 0.62em; height: 0.16em; margin-left: 0.12em; border-radius: 999px; background: #3b5bff; vertical-align: 0.05em; }
   header p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
   #map { height: 60vh; }
   main { padding: 16px 20px; display: grid; gap: 24px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
@@ -22,6 +23,12 @@ const EXPORT_CSS = `
   .sub { display: block; color: var(--muted); font-size: 12px; }
   tr.timeout td { color: var(--none); }
   footer { padding: 12px 20px 24px; color: var(--muted); font-size: 12px; }
+  body.dark { --line:rgb(255 255 255 / 0.1); --muted:rgb(255 255 255 / 0.66); color: #fff; background: #15151b; }
+  .leaflet-container { background: #e9ecef; }
+  .leaflet-tile-pane { filter: saturate(0.45) contrast(0.97) brightness(1.03); }
+  body.dark .leaflet-container { background: #17171d; }
+  body.dark .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) saturate(0.25) brightness(0.82) contrast(0.92); }
+  body.dark .leaflet-popup-content-wrapper, body.dark .leaflet-popup-tip { background: #15151b; color: #fff; }
 `;
 
 function exportHtml(store) {
@@ -30,7 +37,8 @@ function exportHtml(store) {
     .map((r) => ({ target: r.target, color: r.color, ip: r.ip, status: r.status, hops: r.hops }));
   const created = new Date();
   const data = JSON.stringify({ created: created.toISOString(), routes }).replace(/</g, "\\u003c");
-  const helpers = [esc, rttHex, fmtRtt, placeText, popupHtml, makePlacer].map(String).join("\n\n");
+  const helpers = [esc, rttHex, fmtRtt, placeText, popupHtml, arcLatLngs, makePlacer].map(String).join("\n\n");
+  const dark = document.documentElement.dataset.theme === "dark";
 
   const renderer = `
 ${helpers}
@@ -63,8 +71,9 @@ for (const route of DATA.routes) {
     const pos = [hop.geo.lat, hop.geo.lon];
     const marker = L.circleMarker(pos, { radius: 7, weight: 2, color: route.color, fillColor: rttHex(hop.avg_rtt), fillOpacity: 0.95 })
       .bindPopup(popupHtml(route.target, hop)).addTo(map);
-    const line = last ? L.polyline([last, pos], { color: route.color, weight: 3, opacity: 0.8, dashArray: gap ? "6 8" : null }).addTo(map) : null;
-    lastEntry = placer.add(marker, hop.geo.lat, hop.geo.lon, route, lastEntry, line);
+    const shadow = last ? L.polyline([last, pos], { color: route.color, weight: 2, opacity: 0.22, interactive: false }).addTo(map) : null;
+    const line = last ? L.polyline(arcLatLngs(last, pos), { color: route.color, weight: 3, opacity: 0.85, dashArray: gap ? "6 8" : null }).addTo(map) : null;
+    lastEntry = placer.add(marker, hop.geo.lat, hop.geo.lon, route, lastEntry, line, shadow);
     last = pos; gap = false; all.push(pos);
   }
   const section = document.createElement("section");
@@ -88,7 +97,7 @@ else if (all.length === 1) map.setView(all[0], 6);
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>${EXPORT_CSS}</style>
 </head>
-<body>
+<body${dark ? ' class="dark"' : ""}>
 <header>
   <h1>Traceroute Map</h1>
   <p>Traced from the author's PC · exported <span id="created"></span></p>

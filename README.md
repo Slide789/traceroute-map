@@ -8,6 +8,8 @@ Run a traceroute from your own PC and watch every hop show up live on a world ma
 
 - Type a hostname or IP address and the hops appear on the map one by one while the trace is running
 - For each hop: IP address, reverse DNS name, three round-trip times, AS number and provider, city and country
+- Each hop flies to the next one along a curved arc, with a shadow on the ground, so you can follow the route as it is traced
+- Light and dark mode (follows your system setting, switch with the button next to the title)
 - Markers are colored by latency: green under 30 ms, amber from 30 to 99 ms, red from 100 ms
 - Compare several targets on one map, with one colored route per target that you can show, hide or remove
 - Hops that don't reply (`* * *`) and private addresses (your router, carrier-grade NAT) appear in the table but not on the map. A dashed line means some hops in between had no location

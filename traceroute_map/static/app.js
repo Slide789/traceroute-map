@@ -16,10 +16,10 @@ function rttColor(ms) {
 }
 
 function rttHex(ms) {
-  if (ms === null || ms === undefined) return "#98a2b3";
-  if (ms < 30) return "#16a34a";
-  if (ms < 100) return "#d97706";
-  return "#dc2626";
+  if (ms === null || ms === undefined) return "#8a8a93";
+  if (ms < 30) return "#1f9d62";
+  if (ms < 100) return "#d9901c";
+  return "#e0424a";
 }
 
 function fmtRtt(r) {
@@ -38,6 +38,27 @@ function popupHtml(target, hop) {
     <span class="mono">${esc(hop.ip)}</span>${hop.hostname ? `<br>${esc(hop.hostname)}` : ""}<br>
     RTT: ${hop.rtts.map(fmtRtt).join(" / ")}<br>
     ${esc(placeText(g))}${g.asn ? `<br>${esc(g.asn)}` : ""}`;
+}
+
+// Points on a curved arc from a to b (a quadratic Bezier that bulges "upwards"),
+// sampled from t = 0 to t = tEnd so it can be drawn growing. The arc's height
+// grows with distance, which makes long hops look like they fly higher.
+function arcLatLngs(a, b, tEnd = 1, n = 40) {
+  const A = L.latLng(a), B = L.latLng(b);
+  const dx = B.lng - A.lng, dy = B.lat - A.lat;
+  const d = Math.hypot(dx, dy);
+  if (d < 1e-6) return [A, B];
+  let px = -dy / d, py = dx / d;
+  if (py < 0 || (py === 0 && px < 0)) { px = -px; py = -py; }
+  const h = d * 0.22;
+  const cLng = (A.lng + B.lng) / 2 + px * h, cLat = (A.lat + B.lat) / 2 + py * h;
+  const pts = [];
+  const steps = Math.max(1, Math.ceil(n * tEnd));
+  for (let i = 0; i <= steps; i++) {
+    const t = (i / steps) * tEnd, u = 1 - t;
+    pts.push(L.latLng(u * u * A.lat + 2 * u * t * cLat + t * t * B.lat, u * u * A.lng + 2 * u * t * cLng + t * t * B.lng));
+  }
+  return pts;
 }
 
 // Spread markers that share a spot so each one stays clickable. The spread is
@@ -63,16 +84,20 @@ function makePlacer(map) {
       e.marker.setLatLng(position(e));
     }
     for (const e of entries) {
-      if (e.line) e.line.setLatLngs([e.prev.marker.getLatLng(), e.marker.getLatLng()]);
+      if (!e.line) continue;
+      const a = e.prev.marker.getLatLng(), b = e.marker.getLatLng();
+      e.line.setLatLngs(arcLatLngs(a, b));
+      if (e.shadow) e.shadow.setLatLngs([a, b]);
     }
   }
 
   map.on("zoomend", refresh);
 
   return {
-    // Register a marker at its true location; `line` (optional) connects it to `prev`.
-    add(marker, lat, lon, owner, prev = null, line = null) {
-      const entry = { marker, base: L.latLng(lat, lon), key: `${lat.toFixed(3)},${lon.toFixed(3)}`, owner, prev, line, n: 0 };
+    // Register a marker at its true location; `line` (optional) is the arc to `prev`,
+    // `shadow` (optional) its straight "ground" line.
+    add(marker, lat, lon, owner, prev = null, line = null, shadow = null) {
+      const entry = { marker, base: L.latLng(lat, lon), key: `${lat.toFixed(3)},${lon.toFixed(3)}`, owner, prev, line, shadow, n: 0 };
       entries.push(entry);
       refresh();
       return entry;
@@ -86,13 +111,84 @@ function makePlacer(map) {
 
 // ---------- live app ----------
 
-const PALETTE = ["#2563eb", "#db2777", "#0891b2", "#7c3aed", "#ea580c", "#059669", "#ca8a04", "#475569"];
+// Kobalt first, then colors that stay apart from it and from the latency colors.
+const PALETTE = ["#3b5bff", "#e0457b", "#0fa3b1", "#8b5cf6", "#f08a24", "#64748b", "#c026d3", "#0e7490"];
 
+// Dark mode uses the same OSM tiles, darkened with a CSS filter (see style.css).
 const map = L.map("map", { worldCopyJump: true }).setView([30, 10], 2);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 18,
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 }).addTo(map);
+
+// ---------- theme ----------
+
+const darkQuery = matchMedia("(prefers-color-scheme: dark)");
+
+function storedTheme() {
+  try { const t = localStorage.getItem("theme"); return t === "light" || t === "dark" ? t : null; } catch { return null; }
+}
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  $("#theme-toggle").setAttribute("aria-label", theme === "dark" ? "Switch to light mode" : "Switch to dark mode");
+}
+
+darkQuery.addEventListener("change", () => { if (!storedTheme()) applyTheme(darkQuery.matches ? "dark" : "light"); });
+
+function toggleTheme() {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  try { localStorage.setItem("theme", next); } catch { /* ignore */ }
+  applyTheme(next);
+}
+
+// ---------- hop flight animation ----------
+
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+
+// Fly a glowing "packet" along an arc from the previous hop to `to`, drawing the
+// arc behind it. Resolves with { arc, shadow } (both null for the first hop or
+// when the hop sits in the same place).
+function flyHop(route, from, to, gap) {
+  const start = from ? from.marker.getLatLng() : null;
+  const km = start ? map.distance(start, to) / 1000 : 0;
+  const lineOpts = { color: route.color, interactive: false };
+  if (!start) return Promise.resolve({ arc: null, shadow: null });
+
+  const shadow = L.polyline([], { ...lineOpts, weight: 2, opacity: 0.22 }).addTo(route.layer);
+  const arc = L.polyline([], { ...lineOpts, weight: 3, opacity: 0.85, dashArray: gap ? "6 8" : null }).addTo(route.layer);
+  const done = () => { arc.setLatLngs(arcLatLngs(from.marker.getLatLng(), to)); shadow.setLatLngs([from.marker.getLatLng(), to]); };
+
+  if (reducedMotion.matches || km < 1) { done(); return Promise.resolve({ arc, shadow }); }
+
+  const duration = Math.min(1800, 450 + 260 * Math.log2(1 + km / 100));
+  const packet = L.circleMarker(start, {
+    radius: 4, weight: 2, color: "#fff", fillColor: route.color, fillOpacity: 1, className: "packet", interactive: false,
+  }).addTo(route.layer);
+  packet.getElement()?.style.setProperty("filter", `drop-shadow(0 0 6px ${route.color})`);
+
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    function frame(now) {
+      if (route.removed) { resolve({ arc, shadow }); return; }
+      const raw = Math.min(1, (now - t0) / duration);
+      const t = easeInOut(raw);
+      const a = from.marker.getLatLng();
+      const pts = arcLatLngs(a, to, t);
+      arc.setLatLngs(pts);
+      // The ground point right under the packet: the Bezier's chord component is linear in t.
+      shadow.setLatLngs([a, L.latLng(a.lat + (to.lat - a.lat) * t, a.lng + (to.lng - a.lng) * t)]);
+      packet.setLatLng(pts[pts.length - 1]);
+      packet.setRadius(4 + 12 * t * (1 - t)); // bigger at the top of the arc = "closer to the camera"
+      if (raw < 1) { requestAnimationFrame(frame); return; }
+      route.layer.removeLayer(packet);
+      done();
+      resolve({ arc, shadow });
+    }
+    requestAnimationFrame(frame);
+  });
+}
 
 const store = { routes: new Map() };
 window.traceStore = store;
@@ -148,7 +244,7 @@ function renderHops() {
   const body = $("#hop-table tbody");
   body.innerHTML = "";
   const route = store.routes.get(selected);
-  $("#hops-title").textContent = route ? `Hops · ${route.target}` : "Hops";
+  $("#hops-title").innerHTML = route ? `Hops<span class="count">${esc(route.target)}</span>` : "Hops";
   if (!route) return;
   for (const hop of route.hops) {
     const tr = document.createElement("tr");
@@ -183,6 +279,7 @@ function removeRoute(target) {
   const route = store.routes.get(target);
   if (!route) return;
   route.source?.close();
+  route.removed = true;
   map.removeLayer(route.layer);
   store.routes.delete(target);
   if (selected === target) selected = store.routes.keys().next().value ?? null;
@@ -198,20 +295,29 @@ function addHop(route, hop) {
     if (hop.kind !== "private" || route.points.length) route.gap = true;
     return;
   }
-  const pos = [hop.geo.lat, hop.geo.lon];
-  const marker = L.circleMarker(pos, {
-    radius: 7, weight: 2, color: route.color, fillColor: rttHex(hop.avg_rtt), fillOpacity: 0.95,
-  }).bindPopup(popupHtml(route.target, hop)).addTo(route.layer);
-  let line = null;
-  if (route.lastEntry) {
-    line = L.polyline([route.lastEntry.marker.getLatLng(), pos], {
-      color: route.color, weight: 3, opacity: 0.8, dashArray: route.gap ? "6 8" : null,
-    }).addTo(route.layer);
-  }
-  route.lastEntry = placer.add(marker, hop.geo.lat, hop.geo.lon, route, route.lastEntry, line);
-  route.points.push(pos);
+  const pos = L.latLng(hop.geo.lat, hop.geo.lon);
+  const gap = route.gap;
   route.gap = false;
+  route.points.push(pos);
   fitAll();
+  // Hops arrive faster than they fly, so queue the flights one after another.
+  route.anim = route.anim.then(async () => {
+    if (route.removed) return;
+    const from = route.lastEntry;
+    const { arc, shadow } = await flyHop(route, from, pos, gap);
+    if (route.removed) return;
+    const fill = rttHex(hop.avg_rtt);
+    const marker = L.circleMarker(pos, {
+      radius: 7, weight: 2, color: route.color, fillColor: fill, fillOpacity: 0.95, className: "hop-pop",
+    }).bindPopup(popupHtml(route.target, hop)).addTo(route.layer);
+    route.lastEntry = placer.add(marker, hop.geo.lat, hop.geo.lon, route, from, arc, shadow);
+    if (!reducedMotion.matches) {
+      const ripple = L.circleMarker(marker.getLatLng(), {
+        radius: 7, weight: 2, color: fill, fill: false, className: "hop-ripple", interactive: false,
+      }).addTo(route.layer);
+      setTimeout(() => route.layer.removeLayer(ripple), 750);
+    }
+  });
 }
 
 function startTrace(target) {
@@ -227,6 +333,8 @@ function startTrace(target) {
     points: [],
     gap: false,
     lastEntry: null,
+    anim: Promise.resolve(),
+    removed: false,
     layer: L.layerGroup().addTo(map),
     source: null,
   };
@@ -272,5 +380,8 @@ $("#trace-form").addEventListener("submit", (e) => {
 $("#export").addEventListener("click", () => {
   if (typeof downloadExport === "function") downloadExport(store);
 });
+
+$("#theme-toggle").addEventListener("click", toggleTheme);
+applyTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
 
 $("#target").focus();

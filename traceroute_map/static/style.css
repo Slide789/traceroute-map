@@ -1,27 +1,54 @@
+/* Colors follow the "kobalt" set of the slide brand: Ink, White and Kobalt.
+   Kobalt is for graphics and accents only (focus, active state, the dash), never for text. */
 :root {
-  --bg: #f6f7f9;
-  --panel: #ffffff;
-  --text: #16181d;
-  --muted: #667085;
-  --line: #e4e7ec;
-  --accent: #2563eb;
-  --fast: #16a34a;
-  --mid: #d97706;
-  --slow: #dc2626;
-  --none: #98a2b3;
-  --font: "Segoe UI", system-ui, -apple-system, sans-serif;
-  --mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  --ink: #15151b;
+  --white: #ffffff;
+  --kobalt: #3b5bff;
+
+  --bg: var(--white);
+  --text: var(--ink);
+  --muted: rgb(21 21 27 / 0.68);
+  --faint: rgb(21 21 27 / 0.45);
+  --line: rgb(21 21 27 / 0.1);
+  --line-strong: rgb(21 21 27 / 0.22);
+  --surface: rgb(21 21 27 / 0.035);
+  --surface-2: rgb(21 21 27 / 0.07);
+  --btn-bg: var(--ink);
+  --btn-text: var(--white);
+  --float: rgb(255 255 255 / 0.9);
+
+  --fast: #1f9d62;
+  --mid: #d9901c;
+  --slow: #e0424a;
+  --none: rgb(21 21 27 / 0.3);
+
+  --map-bg: #e9ecef;
+  --map-filter: saturate(0.45) contrast(0.97) brightness(1.03);
+
+  --font: "Inter Variable", Inter, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f1115;
-    --panel: #161920;
-    --text: #e6e8ec;
-    --muted: #98a2b3;
-    --line: #262a33;
-    --accent: #60a5fa;
-  }
+:root[data-theme="dark"] {
+  --bg: var(--ink);
+  --text: var(--white);
+  --muted: rgb(255 255 255 / 0.66);
+  --faint: rgb(255 255 255 / 0.42);
+  --line: rgb(255 255 255 / 0.1);
+  --line-strong: rgb(255 255 255 / 0.22);
+  --surface: rgb(255 255 255 / 0.04);
+  --surface-2: rgb(255 255 255 / 0.08);
+  --btn-bg: var(--white);
+  --btn-text: var(--ink);
+  --float: rgb(21 21 27 / 0.88);
+  --none: rgb(255 255 255 / 0.3);
+
+  --map-bg: #17171d;
+  /* Invert the OSM tiles, turn the hues back, then pull everything towards Ink. */
+  --map-filter: invert(1) hue-rotate(180deg) saturate(0.25) brightness(0.82) contrast(0.92);
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -33,93 +60,188 @@ body {
   grid-template-columns: minmax(340px, 400px) 1fr;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.45 var(--font);
+  font: 14px/1.5 var(--font);
+  -webkit-font-smoothing: antialiased;
 }
+
+::selection { background: var(--kobalt); color: var(--white); }
 
 #map { height: 100vh; }
 
 .panel {
   height: 100vh;
   overflow-y: auto;
-  background: var(--panel);
+  background: var(--bg);
   border-right: 1px solid var(--line);
-  padding: 20px 18px;
+  padding: 24px 20px 20px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 24px;
 }
 
-h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: -0.01em; }
-h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 8px; }
-.brand p { margin: 0; color: var(--muted); }
+/* ---------- header ---------- */
+
+.brand-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.2; margin: 0; }
+/* The kobalt dash from the slide logo. */
+h1 .dash {
+  display: inline-block;
+  width: 0.62em;
+  height: 0.16em;
+  margin-left: 0.12em;
+  border-radius: 999px;
+  background: var(--kobalt);
+  vertical-align: 0.05em;
+  transform-origin: left center;
+  animation: dash-in 700ms var(--ease-out) both 120ms;
+}
+@keyframes dash-in { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.brand p { margin: 6px 0 0; color: var(--muted); max-width: 32ch; }
+
+h2 { font-size: 13px; font-weight: 600; letter-spacing: -0.005em; margin: 0 0 8px; }
+h2 .count { color: var(--faint); font-weight: 500; margin-left: 4px; }
+
+/* ---------- form & buttons ---------- */
 
 .trace-form { display: flex; gap: 8px; }
 .trace-form input {
   flex: 1;
   min-width: 0;
-  padding: 9px 11px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--bg);
+  padding: 10px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
   color: var(--text);
-  font: 14px var(--mono);
+  font: 13px var(--mono);
+  transition: border-color 150ms;
 }
-.trace-form input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.trace-form input::placeholder { color: var(--faint); }
+.trace-form input:focus { outline: none; border-color: var(--kobalt); box-shadow: 0 0 0 3px rgb(59 91 255 / 0.22); }
 
 button {
-  padding: 9px 14px;
+  padding: 10px 18px;
   border: 0;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
+  border-radius: 999px;
+  background: var(--btn-bg);
+  color: var(--btn-text);
   font: 600 14px var(--font);
   cursor: pointer;
+  transition: transform 150ms var(--ease-out), opacity 150ms;
 }
-button.ghost { background: transparent; color: var(--accent); padding: 4px 6px; font-weight: 500; }
-button:disabled { opacity: 0.4; cursor: default; }
+button:active:not(:disabled) { transform: scale(0.97); }
+button:focus-visible { outline: 2px solid var(--kobalt); outline-offset: 2px; }
+button.ghost {
+  background: transparent;
+  color: var(--text);
+  padding: 4px 10px;
+  font-weight: 500;
+  font-size: 13px;
+  border: 1px solid var(--line-strong);
+}
+button.ghost:hover:not(:disabled) { border-color: var(--text); }
+button:disabled { opacity: 0.35; cursor: default; }
 
-.form-error { color: var(--slow); margin: -10px 0 0; min-height: 0; }
+button.icon {
+  background: transparent;
+  color: var(--muted);
+  padding: 7px;
+  border: 1px solid var(--line-strong);
+  display: grid;
+  place-items: center;
+}
+button.icon:hover { color: var(--text); border-color: var(--text); }
+button.icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+:root[data-theme="light"] button.icon .sun,
+:root[data-theme="dark"] button.icon .moon { display: none; }
+
+.form-error { color: var(--slow); margin: -16px 0 0; }
 .form-error:empty { display: none; }
 
-.section-head { display: flex; justify-content: space-between; align-items: baseline; }
+/* ---------- routes ---------- */
 
-#route-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-#route-list .empty { color: var(--muted); }
+.section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.section-head h2 { margin: 0; }
+
+#route-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+#route-list .empty { color: var(--faint); padding: 4px 0; }
 .route {
+  position: relative;
   display: grid;
   grid-template-columns: auto auto 1fr auto;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 8px;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
   cursor: pointer;
 }
-.route:hover { background: var(--bg); }
-.route.selected { background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); }
+.route:hover { background: var(--surface); }
+.route.selected { background: var(--surface-2); }
+.route.selected::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--kobalt);
+}
+.route input { accent-color: var(--kobalt); margin: 0; }
 .route .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
-.route .name { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.route .status { color: var(--muted); font-size: 12px; display: block; font-family: var(--font); }
+.route .name { font: 13px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.route .status { color: var(--muted); font: 12px var(--font); display: block; }
 .route .status.error { color: var(--slow); }
-.route .remove { background: none; color: var(--muted); padding: 2px 6px; font-size: 16px; line-height: 1; }
+.route .remove { background: none; color: var(--faint); padding: 2px 6px; font-size: 18px; font-weight: 400; line-height: 1; }
+.route .remove:hover { color: var(--text); }
+
+/* ---------- hops ---------- */
 
 #hop-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-#hop-table th { text-align: left; font-weight: 500; color: var(--muted); padding: 4px 6px; border-bottom: 1px solid var(--line); }
-#hop-table td { padding: 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
-#hop-table td.num { color: var(--muted); width: 1%; }
-#hop-table .addr { font-family: var(--mono); font-size: 12px; white-space: nowrap; }
+#hop-table th { text-align: left; font-weight: 500; font-size: 12px; color: var(--faint); padding: 0 6px 6px; border-bottom: 1px solid var(--line); }
+#hop-table td { padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+#hop-table td.num { color: var(--faint); width: 1%; font-variant-numeric: tabular-nums; }
+#hop-table .addr { font: 12px var(--mono); white-space: nowrap; }
 #hop-table .host, #hop-table .sub { display: block; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-#hop-table tr.timeout td { color: var(--none); }
+#hop-table tr.timeout td { color: var(--faint); }
 #hop-table .rtt { white-space: nowrap; font-variant-numeric: tabular-nums; }
-#hop-table .rtt::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--none)); margin-right: 6px; }
-#hop-table .tag { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+#hop-table .rtt::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--none)); margin-right: 6px; vertical-align: 0.05em; }
+#hop-table .tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
 
-.note { margin-top: auto; color: var(--muted); font-size: 12px; }
-.note a { color: inherit; }
-.legend { display: flex; gap: 10px; margin-top: 8px; align-items: center; }
-.legend i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); display: inline-block; margin-right: -6px; }
+/* ---------- footer ---------- */
 
-.leaflet-popup-content { font: 13px/1.5 var(--font); }
-.leaflet-popup-content .mono { font-family: var(--mono); }
+.note { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.note a { color: inherit; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
+.note a:hover { text-decoration-color: var(--kobalt); }
+.legend { display: flex; gap: 14px; margin-top: 10px; align-items: center; font-variant-numeric: tabular-nums; }
+.legend i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); display: inline-block; margin-right: -8px; }
+
+/* ---------- map ---------- */
+
+.leaflet-container { background: var(--map-bg); font-family: var(--font); }
+.leaflet-tile-pane { filter: var(--map-filter); }
+.leaflet-popup-content-wrapper { background: var(--bg); color: var(--text); border-radius: 12px; box-shadow: 0 8px 24px rgb(21 21 27 / 0.18); }
+.leaflet-popup-tip { background: var(--bg); }
+.leaflet-popup-content { font: 13px/1.55 var(--font); margin: 12px 16px; }
+.leaflet-popup-content .mono { font-family: var(--mono); font-size: 12px; }
+.leaflet-container a.leaflet-popup-close-button { color: var(--faint); }
+.leaflet-bar { border: 1px solid var(--line-strong) !important; border-radius: 12px !important; overflow: hidden; box-shadow: none !important; }
+.leaflet-bar a, .leaflet-bar a:hover { background: var(--float); color: var(--text); border-bottom-color: var(--line); }
+.leaflet-bar a:hover { color: var(--kobalt); }
+.leaflet-control-attribution { background: var(--float) !important; color: var(--muted); border-top-left-radius: 8px; }
+.leaflet-control-attribution a { color: var(--text); }
+
+/* A hop "lands": the marker pops in and a ring ripples out. */
+.hop-pop { transform-box: fill-box; transform-origin: center; animation: hop-pop 380ms cubic-bezier(.2, 1.6, .4, 1); }
+.hop-ripple { transform-box: fill-box; transform-origin: center; animation: hop-ripple 700ms ease-out forwards; pointer-events: none; }
+.packet { pointer-events: none; }
+
+@keyframes hop-pop { from { transform: scale(0); } to { transform: scale(1); } }
+@keyframes hop-ripple { from { transform: scale(1); opacity: .9; } to { transform: scale(3.2); opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hop-pop, .hop-ripple, h1 .dash { animation: none; }
+  .hop-ripple { display: none; }
+}
 
 @media (max-width: 760px) {
   body { grid-template-columns: 1fr; grid-template-rows: 55vh auto; }
