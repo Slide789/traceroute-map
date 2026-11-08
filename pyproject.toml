@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "traceroute-map"
+version = "0.1.0"
+description = "Run a traceroute from your own PC and watch every hop appear live on a world map."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "slideldn" }]
+dependencies = ["flask>=3.0", "requests>=2.31"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+traceroute-map = "traceroute_map.__main__:main"
+
+[tool.setuptools]
+packages = ["traceroute_map"]
+
+[tool.setuptools.package-data]
+traceroute_map = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
