@@ -73,3 +73,35 @@ def test_rate_limit_sleeps():
     for ip in ["1.1.1.1", "8.8.8.8", "9.9.9.9"]:
         geo.lookup(ip)
     assert slept == [60.0]
+
+
+def test_rate_limit_sleep_does_not_block_cache_hits():
+    import threading
+
+    gate = threading.Event()
+    entered = threading.Event()
+
+    def blocking_sleep(seconds):
+        entered.set()
+        gate.wait(5)
+
+    geo = GeoLookup(http_get=FakeHttp(Resp(OK)), clock=lambda: 0.0, sleep=blocking_sleep, max_per_minute=1)
+    geo.lookup("1.1.1.1")  # fills the only slot and the cache
+    t = threading.Thread(target=geo.lookup, args=("8.8.8.8",))
+    t.start()
+    assert entered.wait(2)
+    done = threading.Event()
+    threading.Thread(target=lambda: (geo.lookup("1.1.1.1"), done.set())).start()
+    try:
+        assert done.wait(1), "cache hit was blocked by the rate-limit sleep"
+    finally:
+        gate.set()
+        t.join(5)
+
+
+def test_malformed_success_response_returns_none():
+    assert GeoLookup(http_get=FakeHttp(Resp({"status": "success"}))).lookup("1.1.1.1") is None
+
+
+def test_non_dict_json_returns_none():
+    assert GeoLookup(http_get=FakeHttp(Resp([1, 2, 3]))).lookup("1.1.1.1") is None

@@ -40,18 +40,47 @@ function popupHtml(target, hop) {
     ${esc(placeText(g))}${g.asn ? `<br>${esc(g.asn)}` : ""}`;
 }
 
-// Spread markers that share a spot so each one stays clickable.
-function makeOffsetter() {
-  const used = new Map();
-  return function offset(lat, lon) {
-    const key = `${lat.toFixed(3)},${lon.toFixed(3)}`;
-    const n = used.get(key) || 0;
-    used.set(key, n + 1);
-    if (n === 0) return [lat, lon];
-    const ring = Math.floor((n - 1) / 6);
-    const angle = ((n - 1) % 6) * (Math.PI / 3) + ring * 0.5;
-    const r = 0.15 * (1 + ring * 0.7);
-    return [lat + r * Math.sin(angle), lon + r * Math.cos(angle)];
+// Spread markers that share a spot so each one stays clickable. The spread is
+// in screen pixels and is recomputed on every zoom, so it works at any zoom level.
+function makePlacer(map) {
+  const entries = [];
+  const SPREAD_PX = 16;
+
+  function position(e) {
+    if (e.n === 0) return e.base;
+    const ring = Math.floor((e.n - 1) / 6);
+    const angle = ((e.n - 1) % 6) * (Math.PI / 3) + ring * 0.5;
+    const r = SPREAD_PX * (1 + ring * 0.8);
+    const p = map.latLngToLayerPoint(e.base);
+    return map.layerPointToLatLng(p.add([r * Math.cos(angle), r * Math.sin(angle)]));
+  }
+
+  function refresh() {
+    const counts = new Map();
+    for (const e of entries) {
+      e.n = counts.get(e.key) || 0;
+      counts.set(e.key, e.n + 1);
+      e.marker.setLatLng(position(e));
+    }
+    for (const e of entries) {
+      if (e.line) e.line.setLatLngs([e.prev.marker.getLatLng(), e.marker.getLatLng()]);
+    }
+  }
+
+  map.on("zoomend", refresh);
+
+  return {
+    // Register a marker at its true location; `line` (optional) connects it to `prev`.
+    add(marker, lat, lon, owner, prev = null, line = null) {
+      const entry = { marker, base: L.latLng(lat, lon), key: `${lat.toFixed(3)},${lon.toFixed(3)}`, owner, prev, line, n: 0 };
+      entries.push(entry);
+      refresh();
+      return entry;
+    },
+    removeOwner(owner) {
+      for (let i = entries.length - 1; i >= 0; i--) if (entries[i].owner === owner) entries.splice(i, 1);
+      refresh();
+    },
   };
 }
 
@@ -70,7 +99,7 @@ window.traceStore = store;
 
 let selected = null;
 let colorIndex = 0;
-let offset = makeOffsetter();
+const placer = makePlacer(map);
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -157,8 +186,7 @@ function removeRoute(target) {
   map.removeLayer(route.layer);
   store.routes.delete(target);
   if (selected === target) selected = store.routes.keys().next().value ?? null;
-  // Rebuild offsets so remaining markers keep sensible positions next time.
-  offset = makeOffsetter();
+  placer.removeOwner(route);
   renderRoutes();
   renderHops();
   fitAll();
@@ -170,15 +198,17 @@ function addHop(route, hop) {
     if (hop.kind !== "private" || route.points.length) route.gap = true;
     return;
   }
-  const pos = offset(hop.geo.lat, hop.geo.lon);
-  L.circleMarker(pos, {
+  const pos = [hop.geo.lat, hop.geo.lon];
+  const marker = L.circleMarker(pos, {
     radius: 7, weight: 2, color: route.color, fillColor: rttHex(hop.avg_rtt), fillOpacity: 0.95,
   }).bindPopup(popupHtml(route.target, hop)).addTo(route.layer);
-  if (route.points.length) {
-    L.polyline([route.points[route.points.length - 1], pos], {
+  let line = null;
+  if (route.lastEntry) {
+    line = L.polyline([route.lastEntry.marker.getLatLng(), pos], {
       color: route.color, weight: 3, opacity: 0.8, dashArray: route.gap ? "6 8" : null,
     }).addTo(route.layer);
   }
+  route.lastEntry = placer.add(marker, hop.geo.lat, hop.geo.lon, route, route.lastEntry, line);
   route.points.push(pos);
   route.gap = false;
   fitAll();
@@ -196,6 +226,7 @@ function startTrace(target) {
     hops: [],
     points: [],
     gap: false,
+    lastEntry: null,
     layer: L.layerGroup().addTo(map),
     source: null,
   };

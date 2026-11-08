@@ -29,15 +29,20 @@ class GeoLookup:
         self._sent: deque[float] = deque()
         self._lock = threading.Lock()
 
-    def _wait_for_slot(self) -> None:
-        """Sliding-window rate limit. Must be called with the lock held."""
+    def _reserve_slot(self) -> float:
+        """Reserve the next free request slot and return how long to wait for it.
+
+        Must be called with the lock held; the caller sleeps *after* releasing
+        the lock so cache hits from other threads are never blocked.
+        """
         now = self._clock()
         while self._sent and now - self._sent[0] >= WINDOW_SECONDS:
             self._sent.popleft()
+        start = now
         if len(self._sent) >= self._max:
-            self._sleep(WINDOW_SECONDS - (now - self._sent[0]))
-            self._sent.popleft()
-        self._sent.append(self._clock())
+            start = self._sent.popleft() + WINDOW_SECONDS
+        self._sent.append(start)
+        return start - now
 
     def lookup(self, ip: str) -> Geo | None:
         """Location for `ip`, or None if unknown or the service is unavailable."""
@@ -45,7 +50,9 @@ class GeoLookup:
             cached = self._cache.get(ip, _MISSING)
             if cached is not _MISSING:
                 return cached
-            self._wait_for_slot()
+            wait = self._reserve_slot()
+        if wait > 0:
+            self._sleep(wait)
         try:
             resp = self._http_get(API_URL.format(ip=ip), timeout=5)
             if resp.status_code != 200:
@@ -53,14 +60,17 @@ class GeoLookup:
             data = resp.json()
         except (requests.RequestException, ValueError):
             return None
-        if data.get("status") != "success":
-            geo = None
-        else:
-            geo = Geo(
-                lat=data["lat"], lon=data["lon"], city=data.get("city") or None,
-                country=data.get("country") or None, country_code=data.get("countryCode") or None,
-                asn=data.get("as") or None, isp=data.get("isp") or None,
-            )
+        try:
+            if data.get("status") != "success":
+                geo = None
+            else:
+                geo = Geo(
+                    lat=float(data["lat"]), lon=float(data["lon"]), city=data.get("city") or None,
+                    country=data.get("country") or None, country_code=data.get("countryCode") or None,
+                    asn=data.get("as") or None, isp=data.get("isp") or None,
+                )
+        except (KeyError, TypeError, ValueError, AttributeError):
+            return None
         with self._lock:
             self._cache[ip] = geo
         return geo

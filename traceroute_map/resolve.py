@@ -9,7 +9,7 @@ from concurrent.futures import TimeoutError as FutureTimeout
 
 from .tracer import InvalidTarget
 
-_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="rdns")
+_pool = ThreadPoolExecutor(max_workers=32, thread_name_prefix="rdns")
 
 
 def resolve_target(target: str) -> str:

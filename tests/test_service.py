@@ -92,3 +92,23 @@ def test_resolve_ipv4_literal():
 def test_resolve_ipv6_rejected():
     with pytest.raises(InvalidTarget):
         resolve_target("2001:4860:4860::8888")
+
+
+def test_rdns_and_geo_run_in_parallel():
+    import time
+
+    def slow_rdns(ip):
+        time.sleep(0.4)
+        return "host"
+
+    def slow_geo(ip):
+        time.sleep(0.4)
+        return GEO
+
+    hops = [RawHop(1, "62.155.243.86", [5.0, 5.0, 5.0])]
+    start = time.perf_counter()
+    events = list(trace_events("google.com", resolve=lambda t: "62.155.243.86", tracer=FakeTracer(hops),
+                               geo_lookup=slow_geo, rdns=slow_rdns))
+    elapsed = time.perf_counter() - start
+    assert events[1]["hop"]["hostname"] == "host" and events[1]["hop"]["geo"] is not None
+    assert elapsed < 0.7

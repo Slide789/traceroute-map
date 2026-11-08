@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
+from concurrent.futures import ThreadPoolExecutor
 
 from .classify import classify
 from .models import Geo, Hop, average_rtt
 from .resolve import resolve_target, reverse_dns
 from .tracer import InvalidTarget, run_trace, validate_target
+
+# Reverse DNS runs here while the GeoIP request runs on the trace's own thread.
+_rdns_pool = ThreadPoolExecutor(max_workers=16, thread_name_prefix="hop-rdns")
 
 
 def trace_events(
@@ -35,8 +39,9 @@ def trace_events(
     try:
         for raw in hops:
             kind = classify(raw.ip)
-            hostname = rdns(raw.ip) if kind != "timeout" else None
+            pending_name = _rdns_pool.submit(rdns, raw.ip) if kind != "timeout" else None
             geo = geo_lookup(raw.ip) if (kind == "public" and geo_lookup) else None
+            hostname = pending_name.result() if pending_name else None
             hop = Hop(raw.index, raw.ip, raw.rtts, kind, average_rtt(raw.rtts), hostname, geo)
             reached = reached or raw.ip == ip
             yield {"type": "hop", "target": target, "hop": hop.to_dict()}

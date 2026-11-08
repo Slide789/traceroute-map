@@ -24,7 +24,11 @@ def _as_ip(token: str) -> str | None:
 
 
 def parse_line(line: str) -> RawHop | None:
-    """Turn one output line into a RawHop, or return None if it is not a hop line."""
+    """Turn one output line into a RawHop, or return None if it is not a hop line.
+
+    A line with an IP but no times (e.g. "62.1.1.1 reports: Destination net
+    unreachable.") is kept as a hop with three missing probes.
+    """
     match = _HOP_START.match(line)
     if not match:
         return None
@@ -38,7 +42,7 @@ def parse_line(line: str) -> RawHop | None:
             rtts.append(None)
         elif ip is None:
             ip = _as_ip(other)
-    if not rtts:
+    if not rtts and ip is None:
         return None
     rtts = (rtts + [None] * PROBES)[:PROBES]
     return RawHop(index, ip, rtts)

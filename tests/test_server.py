@@ -34,3 +34,17 @@ def test_sse_stream(client):
     body = r.get_data(as_text=True)
     assert body.count("data: ") == 3
     assert '"type": "done"' in body
+
+
+def test_foreign_host_header_rejected(client):
+    assert client.get("/api/trace?target=x", headers={"Host": "evil.example"}).status_code == 403
+    assert client.get("/", headers={"Host": "evil.example:8765"}).status_code == 403
+
+
+def test_cross_site_request_rejected(client):
+    r = client.get("/api/trace?target=x", headers={"Sec-Fetch-Site": "cross-site"})
+    assert r.status_code == 403
+
+
+def test_localhost_with_port_allowed(client):
+    assert client.get("/", headers={"Host": "127.0.0.1:8765"}).status_code == 200

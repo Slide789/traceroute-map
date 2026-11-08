@@ -30,7 +30,7 @@ function exportHtml(store) {
     .map((r) => ({ target: r.target, color: r.color, ip: r.ip, status: r.status, hops: r.hops }));
   const created = new Date();
   const data = JSON.stringify({ created: created.toISOString(), routes }).replace(/</g, "\\u003c");
-  const helpers = [esc, rttHex, fmtRtt, placeText, popupHtml, makeOffsetter].map(String).join("\n\n");
+  const helpers = [esc, rttHex, fmtRtt, placeText, popupHtml, makePlacer].map(String).join("\n\n");
 
   const renderer = `
 ${helpers}
@@ -42,11 +42,11 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 18,
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 }).addTo(map);
-const offset = makeOffsetter();
+const placer = makePlacer(map);
 const all = [];
 const main = document.querySelector("main");
 for (const route of DATA.routes) {
-  let last = null, gap = false;
+  let last = null, lastEntry = null, gap = false;
   const rows = [];
   for (const hop of route.hops) {
     if (hop.kind === "timeout") {
@@ -60,10 +60,11 @@ for (const route of DATA.routes) {
       + (hop.hostname ? '<span class="sub">' + esc(hop.hostname) + '</span>' : '')
       + '</td><td>' + fmtRtt(hop.avg_rtt) + '</td><td>' + where + '</td></tr>');
     if (!hop.geo) { if (last) gap = true; continue; }
-    const pos = offset(hop.geo.lat, hop.geo.lon);
-    L.circleMarker(pos, { radius: 7, weight: 2, color: route.color, fillColor: rttHex(hop.avg_rtt), fillOpacity: 0.95 })
+    const pos = [hop.geo.lat, hop.geo.lon];
+    const marker = L.circleMarker(pos, { radius: 7, weight: 2, color: route.color, fillColor: rttHex(hop.avg_rtt), fillOpacity: 0.95 })
       .bindPopup(popupHtml(route.target, hop)).addTo(map);
-    if (last) L.polyline([last, pos], { color: route.color, weight: 3, opacity: 0.8, dashArray: gap ? "6 8" : null }).addTo(map);
+    const line = last ? L.polyline([last, pos], { color: route.color, weight: 3, opacity: 0.8, dashArray: gap ? "6 8" : null }).addTo(map) : null;
+    lastEntry = placer.add(marker, hop.geo.lat, hop.geo.lon, route, lastEntry, line);
     last = pos; gap = false; all.push(pos);
   }
   const section = document.createElement("section");

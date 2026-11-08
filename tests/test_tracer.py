@@ -78,3 +78,9 @@ def test_closing_generator_kills_process(fake_popen):
     next(gen)
     gen.close()
     assert fake_popen.killed is True
+
+
+def test_validate_rejects_total_length_over_253():
+    name = ".".join(["a" * 63] * 4)  # 255 chars, every label valid
+    with pytest.raises(InvalidTarget):
+        validate_target(name)

@@ -45,3 +45,8 @@ def test_ipv6_in_brackets():
 ])
 def test_non_hop_lines(line):
     assert parse_line(line) is None
+
+
+def test_error_line_with_ip_but_no_rtts_is_kept():
+    assert parse_line("  4  62.1.1.1  meldet: Zielnetz nicht erreichbar.") == RawHop(4, "62.1.1.1", [None, None, None])
+    assert parse_line("  4  62.1.1.1  reports: Destination net unreachable.") == RawHop(4, "62.1.1.1", [None, None, None])
